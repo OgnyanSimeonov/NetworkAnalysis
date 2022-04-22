@@ -1,0 +1,363 @@
+---
+title: "Final Project"
+author: "Ogy"
+date: "2/13/2022"
+output: html_document
+---
+
+## Setup
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+
+# Store string containing all required packages
+my_packages <- c('pdftools', 'stringr', 'stopwords', 'igraph', 'RColorBrewer', 'dplyr') # create a vector of str objects and put packages needed
+```
+
+Determine which packages in list has already been installed
+
+``` {r installed-packages}
+# Store all installed packages
+ya_installed <- library()$results[,1] # installed
+
+# Check whether required packages are already installed and grab only those that still need installation
+need_install<-my_packages[!(my_packages %in% ya_installed)] # not in installed variable
+
+#install required packages
+lapply(need_install, install.packages, character.only = TRUE) # install all required packages
+```
+
+Now, load only unloaded packages
+
+``` {r unloaded-packages}
+# Store all installed packages
+ya_loaded <- (.packages())
+
+# Check whether required packages are already installed and grab only those that still need installation
+need_load<-my_packages[!(my_packages %in% ya_loaded)]
+
+# Load required packages
+lapply(need_load, require, character.only = TRUE)
+```
+
+## Scrape Interim Report 
+
+``` {r scrape-text}
+# Extract text from pdf
+text <- pdf_text("MonteCristo.pdf")
+# Convert text to dataframe
+text_df <- as.data.frame(text)
+```
+
+```{r chapter3}
+# Each page of pdf is one row
+MonteCristo <- text_df[9:284,]
+
+```
+
+
+``` {r}
+# Convert desired row(s)/page(s) to character string
+MonteCristo  <- as.character(MonteCristo)
+```
+
+### Removing line breaks
+
+```{r}
+# Replace all instances of "\n" (newline) with a space - use escape characters
+# You have to add a space otherwise words will run together
+MonteCristo <- str_replace_all(MonteCristo, "\\\n", " ")
+```
+
+
+### Delete all punctuation
+
+Because we are going to look at 2 grams, we are going to remove all punctuation.  
+
+``` {r}
+#Replace punctuation with no space
+
+# Delete all quotation marks - these are left and right quotation marks
+MonteCristo <- str_replace_all(MonteCristo, "“", "")
+MonteCristo <- str_replace_all(MonteCristo, "”", "")
+
+# Delete all commas
+MonteCristo <- str_replace_all(MonteCristo, ",","")
+
+MonteCristo <- str_replace_all(MonteCristo, ";","")
+MonteCristo <- str_replace_all(MonteCristo, ":","")
+
+```
+
+Finally, we clean up redundant spaces
+
+``` {r}
+# Replace multiple spaces with one space
+# s+ means 1 or more spaces.  \\ are escape characters
+MonteCristo <- str_replace_all(MonteCristo, "\\s+", " ")
+```
+
+
+Check to make sure there isn't anything else that needs removing, such as numbers.
+
+
+### Cleaning for an effective network graph
+
+We now want to make sure that our words will be recognized as the same when we construct relationships, so we have to converting everything to lowercase. Then we will use a for loop to define an edgelist.
+
+```{r}
+# Convert all text to lowercase
+MonteCristo <- tolower(MonteCristo)
+```
+
+``` {r}
+# Identify stop words
+# stopwords gives us a list of such words
+# otherwise we could manually define these, or even add to this list
+stopwords_regex = paste(stopwords('en'), collapse = '\\b|\\b')
+stopwords_regex = paste0('\\b', stopwords_regex, '\\b')
+MonteCristo<- str_replace_all(MonteCristo, stopwords_regex, '')
+```
+
+If we were looking at word/sentence relationships, we may have wanted to keep periods and question marks first to define sentences before breaking up into words. 
+
+``` {r}
+# saving as MonteCristo for duple
+# Delete all question marks (use escape characters)
+MonteCristo <- str_replace_all(MonteCristo, "\\?", "")
+
+# Delete all periods
+MonteCristo <- str_replace_all(MonteCristo, "\\.", "")
+
+```
+
+``` {r}
+# Replace multiple spaces with one space
+
+# s+ means 1 or more spaces.  \\ are escape characters
+MonteCristo <-str_replace_all(MonteCristo, "\\s+", " ")
+```
+
+```{r}
+#removing all parenthesis 
+MonteCristo <- str_replace_all(MonteCristo, "\\(", "")
+MonteCristo <- str_replace_all(MonteCristo, "\\)", "")
+
+```
+
+```{r}
+#remove all numbers
+MonteCristo <- gsub('[0-9]+',"", MonteCristo)
+
+```
+
+```{r}
+#Remove multiple space with one space
+MonteCristo <- str_replace_all(MonteCristo, "\\s+", " ")
+```
+
+```{r}
+# Delete spaces at the start and end of our text
+MonteCristo<-trimws(MonteCristo, "both")
+```
+
+```{r}
+# Clear again 
+MonteCristo <- str_replace_all(MonteCristo, "\\/", "")
+#MonteCristo <- str_replace_all(MonteCristo, "\\- ", "-")
+MonteCristo <- str_replace_all(MonteCristo, "\\ -","")
+MonteCristo <- str_replace_all(MonteCristo, "\\‘","")
+MonteCristo <- str_replace_all(MonteCristo, "\\’","")
+MonteCristo <- str_replace_all(MonteCristo, "\\--", "-")
+MonteCristo <- str_replace_all(MonteCristo, "—", "")
+MonteCristo <- str_replace_all(MonteCristo, "!", "")
+MonteCristo <- str_replace_all(MonteCristo, "\\*", "")
+MonteCristo <- str_replace_all(MonteCristo, " s ", " ")
+MonteCristo <- str_replace_all(MonteCristo, " m ", " ")
+MonteCristo <- str_replace_all(MonteCristo, " ve ", "")
+MonteCristo <- str_replace_all(MonteCristo, " re ", "")
+MonteCristo <- str_replace_all(MonteCristo, "é", "e")
+MonteCristo <- str_replace_all(MonteCristo, "è", "e")
+MonteCristo <- str_replace_all(MonteCristo, "isnt", "")
+MonteCristo <- str_replace_all(MonteCristo, "wasnt", "")
+```
+
+``` {r}
+# Replace multiple spaces with one space
+MonteCristo <- str_replace_all(MonteCristo, "\\s+", " ")
+
+MonteCristo<-trimws(MonteCristo, "both")
+```
+### Get a vector of words
+We now have one list of words in a 1x1 matrix. We need to convert that to a vector with one word in each slot.
+
+``` {r}
+# Remember that strsplit returns a list of lists
+MonteCristo_ls <- str_split(MonteCristo, " ")
+```
+
+```{r}
+MonteCristo_vec <- unlist(MonteCristo_ls)
+```
+## Get a vector of words
+
+We now have one list of words in a 1x1 matrix. We need to convert that to a vector with one word in each slot.
+
+```{r}
+MonteCristo_vec <- vector()
+for (i in 1:length(MonteCristo_ls)) {
+  MonteCristo_vec <- append(MonteCristo_vec, MonteCristo_ls[[i]])
+}
+```
+
+### Convert the vector of consectutive words into an edgelist
+
+``` {r}
+# Create an empty dataframe to hold each edgelist row
+# It should have 2 columns and 1 row
+# A for-loop will overwrite this for each loop
+MonteCristo_row <- as.data.frame(matrix(ncol = 2, nrow = 0))
+
+MonteCristo_el <- as.data.frame(matrix(ncol = 2, nrow = 0))
+```
+
+## Trigram for loop
+``` {r}
+# for loop for creating a trigram for interim report
+
+for (i in 1:(length(MonteCristo_vec)-1)) {
+  MonteCristo_row <- c(MonteCristo_vec[i], MonteCristo_vec[i+1])
+  MonteCristo_el <- rbind( MonteCristo_el, MonteCristo_row)
+  if (i == 1000){
+    print("hi")}
+}
+colnames(MonteCristo_el) <- c('word', 'next')
+```
+
+``` {r}
+# Convert our edge list to the R data type matrix
+MonteCristo_el_mat <- as.matrix(MonteCristo_el)
+MonteCristo_el_mat <- na.omit(MonteCristo_el_mat)
+#Clean all disconnected words and number/NA entries
+#MonteCristo_el_mat <- MonteCristo_el_mat[-c(21018,),]
+
+#Clean all disconnected words and number/NA entries
+MonteCristo_el_mat <- na.omit(MonteCristo_el_mat)
+MonteCristo_list1 <- list("edmond", "dantes", "abbe", "faria", "fernand", "prison", "guard", "cell", "jailer", "island")
+MonteCristo_list2 <- list("monte", "cristo", "count", "franz", "albert", "island", "visit", "italy")
+MonteCristo_list3 <- list("house", "love", "paris", "mansion", "posion", "die", "servant")
+```
+
+
+## A summary of our graph objects
+
+``` {r}
+# Create a network graph object
+MonteCristo.g <- graph_from_edgelist(MonteCristo_el_mat, directed = T)
+# use summary to check it out
+
+#used for ploting k-core. Chlnge the number 5 in the for loop with the respective number of coreness you wish to plot
+for (i in 5 :0){
+Edge = which(degree(MonteCristo.g)==i)
+MonteCristo.g = delete.vertices(MonteCristo.g, Edge)
+}
+
+#Summary statistics of the graph object
+E(MonteCristo.g)
+V(MonteCristo.g)
+summary(MonteCristo.g)
+
+```
+
+
+## Define shapes and colors for the key words
+
+``` {r}
+# Define the color of the different key words
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_el_mat[,1]]$color <- "#91bfdb"  
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_list1]$color <- "#fc8d59"
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_list2]$color <- "#de2d26"
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_list3]$color <- "#a1d99b"
+
+# Define the shape of the different words
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_el_mat[,1]]$shape <- "circle"
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_list1]$shape <- "square"
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_list2]$shape <- "square"
+V(MonteCristo.g)[V(MonteCristo.g)$name %in% MonteCristo_list3]$shape <- "square"
+```
+
+## Plotting
+``` {r}
+png(file="MonteCristokcore5.png", width=8000, height=8000) #save the plot as a png file with width 8000 and height 8000
+plot(MonteCristo.g,#plot words_matrix.g
+    vertex.size = 1, #make the size of the nodes smaller
+    vertex.label.cex = 0.7, #make the size of the node labes smaller
+    vertex.label.distance = 0, #set the labels directly on the nodes
+    #vertex.color = "#91bfdb", #select a specific rgb color for the nodes
+    edge.curved = 0.35, # add a small curviture to the edges
+    vertex.label.color = "black", #change the color of the node labels to black
+    edge.color = rgb(113/255, 114/255, 113/255, 0.2), #change the edge color to a specific rgb color 
+    layout = layout_with_fr
+    ) #use Fructerman-Reingold layout for the network
+dev.off() 
+```
+
+## Ego Networks
+
+Below we present the code for plotting the ego networks. In this example, we plot the netwofrk for the word "dantes", but this code can be modified easily to plot the ego network for any word in the report. Foloow the instructions in the comments to plot for a different word. 
+
+```{r}
+#EXAMPLE of how to plot the ego network for the word data
+names <- V(MonteCristo.g)$name #assign the names of the words to  name 
+#View(names) #uncomment this line to check the corresponding number of the word you would wish to plot a network for -- type the word in the search box once you view the file names
+o <- induced_subgraph(MonteCristo.g, c(29, neighbors(MonteCristo.g,29))) #put the number from the previous part in the induced_subgraph and the neighbors command in this line
+degree <- log(degree(o, mode = "all"))/3 #assign the degree of the words in the network to the object degree for use later in plotting #remove log if nodes too small
+b <- "dantes" #put the word you are making the ego network for instead of "data"
+
+#Change the colors for the words in the network
+V(o)[V(o)$name %in% c(b)]$color <- "#fc8d59" #use this color for the word in b
+V(o)[!(V(o)$name %in% c(b))]$color <- "#91bfdb" #use this color for all other words
+
+#Change the shapes for ch3
+V(o)[V(o)$name %in% c(b)]$shape <- "square" #set the shape of the the desired word to square
+V(o)[!(V(o)$name %in% c(b))]$shape <- "circle" #set the shape of the rest of the nodes to circle
+
+###PLOTTING
+png(file=b, width=3000, height=3000, res = 100) #save the plot as a png file wit hwidth 6000 and height 6000
+plot(o,#plot the ego network for data
+    vertex.size = degree, #make the size of the nodes smaller
+    vertex.label.cex = .7, #make the size of the node labes smaller
+    vertex.label.distance = 0, #set the labels directly on the nodes
+    #vertex.color = "#91bfdb", #select a specific rgb color for the nodes
+    edge.curved = 0.35, # add a small curviture to the edges
+    vertex.label.color = "black", #change the color of the node labels to black
+    edge.color = rgb(113/255, 114/255, 113/255, 0.2), #change the edge color to a specific rgb color 
+    layout = layout_with_fr #use Fructerman-Reingold layout for the network
+    )
+dev.off() 
+```
+
+You can follow similar procedure to create all the ego networks for the interim report as well by changing the graph object in the first and second commands (names <- V(MonteCristo.g)$name and o <- induced_subgraph(MonteCristo.g, c(1, neighbors(MonteCristo.g,1)))) in this chunk to the graph object for the interim report.
+
+
+## Centrality Analysis
+```{r}
+
+#degree centrality 
+cent.degree <- degree(MonteCristo.g)
+    ind <- order(-cent.degree)
+    cent.degree[ind][1:50]
+#Betweeness centrality
+cent.bt <- betweenness(MonteCristo.g)
+    ind1 <- order(-cent.bt)
+    cent.bt[ind1][1:50]
+#Closeness centrality
+cent.close <- closeness(MonteCristo.g)
+    ind2 <- order(-cent.close)
+    cent.close[ind2][1:50]
+#Eigenvector centrality
+cent.eig <- evcent(MonteCristo.g)
+    names(cent.eig$vector) <- V(MonteCristo.g)$name
+    ind3 <- order(-cent.eig$vector)
+    cent.eig$vector[ind3][1:50]
+```
